@@ -1,0 +1,109 @@
+---
+title: "Peer review assignment Practical machine learning"
+output:
+  html_document:
+    df_print: paged
+---
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+#Get the data
+```{r setup, echo = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("Y:/Mijn Documenten/R-cursus/data/peer 8")
+training <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), na.strings=c("NA","#DIV/0!",""))
+set.seed(42) #theanswer
+```
+#library packages
+```{r 1,echo = TRUE}
+library(caret)
+library(randomForest)
+library(rpart) 
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(ggplot2)
+```
+#exploratory analysis
+```{r 2,echo = TRUE}
+#dim(training); dim(testing); summary(training); summary(testing); str(training); str(testing); head(training); head(testing)
+```
+#Clean the data
+```{r 3, echo=TRUE}
+# Delete columns with only missing values
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+# Delete irrelevant variables: user_name, raw_timestamp_part_1, raw_timestamp_part_,2 cvtd_timestamp, new_window, and  num_window (columns 1 to 7)
+training   <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+```
+
+## Devide the training set into two
+with a 70/30 chance
+```{r 4,echo = TRUE}
+inTrain <- createDataPartition(y=training$classe, p=0.7, list=FALSE)
+myTraining <- training[inTrain, ]; myTesting <- training[-inTrain, ]
+#dim(myTraining); dim(myTesting)
+```
+# let's have a look at classe
+
+```{r 5,echo = TRUE}
+ggplot(myTraining, aes(classe)) +
+  geom_histogram(stat="count", position = "dodge")
+```
+
+In the plot we can see that the level A has the most counts and level D the least.
+
+#Decision Tree
+We fit a predictive model for activity recognition using Decision Tree algorithm.
+
+```{r 6,echo = TRUE}
+model1 <- rpart(classe ~ ., data=myTraining, method="class")
+prp(model1)
+```
+
+Now, we estimate the performance of the model on the testing data set.
+```{r 7,echo = TRUE}
+
+# Predicting dt:
+predictiontree <- predict(model1, myTesting, type = "class")
+confusionMatrix(myTesting$classe, predictiontree)
+accuracy1 <- postResample(predictiontree, myTesting$classe)
+ose1 <- 1 - as.numeric(confusionMatrix(myTesting$classe, predictiontree)$overall[1])
+```
+
+The Accuracy of the prediction tree is 72.9%, not terribly good. And the Estimated Out-of-Sample Error 27.1%.
+Let's have a look at a random forest prediction.
+
+## Random forest prediction
+Now we will fit a predictive model for classe using Random Forest algorithm. It automatically selects important variables and is robust to correlated covariates & outliers in general.
+We will use 5-fold cross validation when applying the algorithm.
+```{r 8,echo = TRUE}
+#fitting
+Randomfrst <- train(classe ~ ., data = myTraining, method = "rf", trControl = trainControl(method = "cv", 5), ntree = 250)
+Randomfrst
+```
+
+Now, we estimate the performance of the model on the testing set.
+
+```{r 9,echo = TRUE}
+
+# Predicting rf:
+predictRF <- predict(Randomfrst, myTesting)
+confusionMatrix(myTesting$classe, predictRF)
+accuracy2 <- postResample(predictRF, myTesting$classe)
+ose2 <- 1 - as.numeric(confusionMatrix(myTesting$classe, predictRF)$overall[1])
+```
+
+The Accuracy of the prediction tree is 99.18%, not terribly good. And the Estimated Out-of-Sample Error 0.8%.
+As expected the random forest technique yielded much beter results.
+
+#Predicting the testing data set
+```{r 10,echo = TRUE}
+predict(Randomfrst, testing[, -length(names(testing))])
+```
+
+This shows the predicted outcomes based on our fitted random forest model. With an accuracy above 99% on our cross-validation data, we can expect that very few, or none, of the test samples will be missclassified.
+
+
+
